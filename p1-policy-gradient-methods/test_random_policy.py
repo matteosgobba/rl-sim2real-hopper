@@ -52,7 +52,7 @@ def main():
                          (sum((r - sum(rewards)/len(rewards))**2
                          for r in rewards)/len(rewards))**0.5])
 
-    print(f"Risultati salvati in: {results_path}")
+    print(f"Results saved in: {results_path}")
 
 if __name__ == '__main__':
     main()

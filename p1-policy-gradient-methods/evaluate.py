@@ -24,8 +24,8 @@ def evaluate_policy(policy, env_name="Hopper-v4", n_episodes=50, seed=42):
     mean_reward = np.mean(rewards)
     std_reward = np.std(rewards)
 
-    print(f"\n=== RISULTATI SU {n_episodes} EPISODI ===")
-    print(f"Media reward:  {mean_reward:.2f}")
+    print(f"\nRESULTS ON {n_episodes} EPISODES")
+    print(f"Mean reward:  {mean_reward:.2f}")
     print(f"Std reward:    {std_reward:.2f}")
 
     return mean_reward, std_reward
