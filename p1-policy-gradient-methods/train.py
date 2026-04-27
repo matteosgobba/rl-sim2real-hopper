@@ -7,15 +7,16 @@ import time
 import numpy as np
 import gymnasium as gym
 import torch
+import random
 
 from agent import Policy, ReinforceAgent
 
 
-def evaluate_agent(env, agent, n_episodes=5):
+def evaluate_agent(env, agent, n_episodes=5, seed=123):
     rewards = []
 
-    for _ in range(n_episodes):
-        state, _ = env.reset()
+    for episode in range(n_episodes):
+        state, _ = env.reset(seed=seed + episode)
         done = False
         ep_reward = 0.0
 
@@ -45,6 +46,7 @@ def main():
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+    random.seed(args.seed)
 
     render_mode = 'human' if args.render else None
     env = gym.make('Hopper-v4', render_mode=render_mode)
@@ -76,7 +78,7 @@ def main():
     total_start = time.time()
 
     for episode in range(1, args.episodes + 1):
-        state, _ = env.reset()
+        state, _ = env.reset(seed=args.seed + episode)
         done = False
         ep_reward = 0.0
 
@@ -100,7 +102,7 @@ def main():
         episode_times.append(ep_time)
 
         if episode % args.eval_every == 0:
-            avg_eval_reward = evaluate_agent(eval_env, agent, n_episodes=5)
+            avg_eval_reward = evaluate_agent(eval_env, agent, n_episodes=5, seed=args.seed + 10000)
             eval_rewards.append((episode, avg_eval_reward))
 
             print(
