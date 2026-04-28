@@ -13,7 +13,7 @@ import gymnasium as gym
 import torch
 
 from agent import Policy, ReinforceAgent, ActorCriticAgent, PolicyNetwork, ValueNetwork
-
+from evaluate import evaluate_policy
 
 def evaluate_agent(env, agent, n_episodes=5, seed=123):
     rewards = []
@@ -208,6 +208,28 @@ def main():
     print(f"Average episode reward: {np.mean(episode_rewards):.2f}")
     print(f"Average episode time: {np.mean(episode_times):.2f}s")
     print(f"Total training time: {total_time:.2f}s")
+
+    def trained_policy(obs):
+        action, _ = agent.get_action(obs, evaluation=True)
+        return action
+
+    if args.algo == "reinforce":
+        policy_name = f"reinforce_baseline_{args.baseline}_seed_{args.seed}"
+    else:
+        policy_name = f"actor_critic_seed_{args.seed}"
+
+    eval_mean, eval_std = evaluate_policy(
+        policy=trained_policy,
+        env_name="Hopper-v4",
+        n_episodes=50,
+        seed=args.seed + 20000,
+        policy_name=policy_name,
+        results_path="results.csv"
+    )
+
+    print("\nFinal evaluation completed.")
+    print(f"Evaluation mean reward: {eval_mean:.2f}")
+    print(f"Evaluation std reward: {eval_std:.2f}")
 
     env.close()
     eval_env.close()
