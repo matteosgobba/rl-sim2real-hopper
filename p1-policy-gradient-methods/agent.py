@@ -6,9 +6,11 @@ from torch.distributions import Normal
 def discount_rewards(r, gamma):
     discounted_r = torch.zeros_like(r)
     running_add = 0.0
+
     for t in reversed(range(r.size(0))):
         running_add = running_add * gamma + r[t]
         discounted_r[t] = running_add
+
     return discounted_r
 
 
@@ -43,6 +45,7 @@ class Policy(torch.nn.Module):
 
         sigma = self.sigma_activation(self.sigma) + 1e-5
         normal_dist = Normal(action_mean, sigma)
+
         return normal_dist
 
 
@@ -91,10 +94,11 @@ class ReinforceAgent(object):
         if evaluation:
             action = normal_dist.mean
             return action.detach().cpu().numpy(), None
-        else:
-            action = normal_dist.sample()
-            action_log_prob = normal_dist.log_prob(action).sum()
-            return action.detach().cpu().numpy(), action_log_prob
+
+        action = normal_dist.sample()
+        action_log_prob = normal_dist.log_prob(action).sum()
+
+        return action.detach().cpu().numpy(), action_log_prob
 
     def store_outcome(self, state, next_state, action_log_prob, reward, done):
         self.states.append(torch.from_numpy(state).float())
@@ -103,18 +107,20 @@ class ReinforceAgent(object):
         self.rewards.append(torch.tensor([reward], dtype=torch.float32))
         self.done.append(done)
 
-#rete actor (policy)
+
 class PolicyNetwork(torch.nn.Module):
     def __init__(self, state_space, action_space):
         super().__init__()
         self.hidden = 64
+        self.tanh = torch.nn.Tanh()
+
         self.fc1 = torch.nn.Linear(state_space, self.hidden)
         self.fc2 = torch.nn.Linear(self.hidden, self.hidden)
         self.fc3_mean = torch.nn.Linear(self.hidden, action_space)
-        
+
         self.sigma_activation = F.softplus
         self.sigma = torch.nn.Parameter(torch.zeros(action_space) + 0.5)
-        self.tanh = torch.nn.Tanh()
+
         self.init_weights()
 
     def init_weights(self):
@@ -127,18 +133,21 @@ class PolicyNetwork(torch.nn.Module):
         x = self.tanh(self.fc1(x))
         x = self.tanh(self.fc2(x))
         mean = self.fc3_mean(x)
+
         sigma = self.sigma_activation(self.sigma) + 1e-5
         return Normal(mean, sigma)
 
-#rete critic (value function)
+
 class ValueNetwork(torch.nn.Module):
     def __init__(self, state_space):
         super().__init__()
         self.hidden = 64
+        self.tanh = torch.nn.Tanh()
+
         self.fc1 = torch.nn.Linear(state_space, self.hidden)
         self.fc2 = torch.nn.Linear(self.hidden, self.hidden)
         self.fc3 = torch.nn.Linear(self.hidden, 1)
-        self.tanh = torch.nn.Tanh()
+
         self.init_weights()
 
     def init_weights(self):
@@ -150,15 +159,26 @@ class ValueNetwork(torch.nn.Module):
     def forward(self, x):
         x = self.tanh(self.fc1(x))
         x = self.tanh(self.fc2(x))
-        return self.fc3(x).squeeze(-1) # Restituisce lo scalare V(s)
+        return self.fc3(x).squeeze(-1)
 
 
 class ActorCriticAgent(object):
-    def __init__(self, actor, critic, lr_actor=1e-3, lr_critic=3e-4, gamma=0.99, value_coef=0.5, entropy_coef=0.01, device='cpu'):
+    def __init__(
+        self,
+        actor,
+        critic,
+        lr_actor=5e-4,
+        lr_critic=1e-3,
+        gamma=0.99,
+        value_coef=0.7,
+        entropy_coef=0.02,
+        device='cpu'
+    ):
         self.train_device = device
-        self.actor = actor.to(device)
-        self.critic = critic.to(device)
-        
+
+        self.actor = actor.to(self.train_device)
+        self.critic = critic.to(self.train_device)
+
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
@@ -168,43 +188,46 @@ class ActorCriticAgent(object):
 
     def get_action(self, state, evaluation=False):
         x = torch.from_numpy(state).float().to(self.train_device)
-        
+
         dist = self.actor(x)
         value = self.critic(x)
 
         if evaluation:
-            return dist.mean.detach().cpu().numpy(), None
+            action = dist.mean
+            return action.detach().cpu().numpy(), None
 
         action = dist.sample()
-        return action.detach().cpu().numpy(), (dist.log_prob(action).sum(), dist.entropy().sum(), value)
+        action_log_prob = dist.log_prob(action).sum()
+        entropy = dist.entropy().sum()
 
-    def update_step(self, next_state, action_log_prob, reward, done, value, entropy):
+        return action.detach().cpu().numpy(), (action_log_prob, entropy, value)
+
+    def update_step(self, next_state, action_log_prob, reward, terminal, value, entropy):
         next_x = torch.from_numpy(next_state).float().to(self.train_device)
-        
+
         with torch.no_grad():
             next_value = self.critic(next_x)
 
         reward_t = torch.tensor(reward, dtype=torch.float32, device=self.train_device)
-        done_t = torch.tensor(float(done), dtype=torch.float32, device=self.train_device)
+        terminal_t = torch.tensor(float(terminal), dtype=torch.float32, device=self.train_device)
 
+        td_target = reward_t + self.gamma * next_value * (1.0 - terminal_t)
+        advantage = td_target - value
 
-        td_target = reward_t + self.gamma * next_value * (1.0 - done_t)
-        advantage = td_target - value 
-        
+        critic_loss = self.value_coef * F.mse_loss(value, td_target.detach())
 
-        #update critic
-        critic_loss = self.value_coef * F.mse_loss(value, td_target)
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
         self.critic_optimizer.step()
 
-        #update actor
-        actor_loss = -(action_log_prob * advantage.detach()) + self.entropy_coef * (-entropy)
-
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+        actor_loss = -(action_log_prob * advantage.detach()) - self.entropy_coef * entropy
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         self.actor_optimizer.step()
 
-        return (actor_loss + critic_loss).item()
+        total_loss = actor_loss + critic_loss
+
+        return total_loss.item()
