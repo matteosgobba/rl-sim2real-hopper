@@ -9,7 +9,7 @@ import gymnasium as gym
 import torch
 import random
 
-from agent import Policy, ReinforceAgent
+from agent import Policy, ReinforceAgent, ActorCriticAgent, PolicyNetwork, ValueNetwork
 
 
 def evaluate_agent(env, agent, n_episodes=5, seed=123):
@@ -34,11 +34,15 @@ def evaluate_agent(env, agent, n_episodes=5, seed=123):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--algo', type=str, default='reinforce', choices=['reinforce'])
+    parser.add_argument('--algo', type=str, default='reinforce', choices=['reinforce', 'actor_critic'])
     parser.add_argument('--baseline', type=float, default=0.0)
     parser.add_argument('--episodes', type=int, default=500)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--lr', type=float, default=1e-3)
+
+
+    parser.add_argument('--lr_actor', type=float, default=5e-4)
+    parser.add_argument('--lr_critic', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--eval_every', type=int, default=20)
     parser.add_argument('--render', action='store_true')
@@ -68,6 +72,21 @@ def main():
             gamma=args.gamma,
             device='cpu'
         )
+    
+    elif args.algo == 'actor_critic':
+        actor_net = PolicyNetwork(state_dim, action_dim)
+        critic_net = ValueNetwork(state_dim)
+
+        agent = ActorCriticAgent(
+            actor=actor_net, 
+            critic=critic_net, 
+            lr_actor=args.lr_actor,
+            lr_critic=args.lr_critic,
+            gamma=args.gamma,
+            value_coef=0.7,
+            entropy_coef=0.02,
+            device='cpu'
+        )
     else:
         raise ValueError(f'Unsupported algorithm: {args.algo}')
 
@@ -76,62 +95,135 @@ def main():
     episode_times = []
 
     total_start = time.time()
+    if args.algo == 'reinforce':
+        for episode in range(1, args.episodes + 1):
+            state, _ = env.reset(seed=args.seed + episode)
+            done = False
+            ep_reward = 0.0
 
-    for episode in range(1, args.episodes + 1):
-        state, _ = env.reset(seed=args.seed + episode)
-        done = False
-        ep_reward = 0.0
+            ep_start = time.time()
 
-        ep_start = time.time()
+            while not done:
+                action, action_log_prob = agent.get_action(state, evaluation=False)
 
-        while not done:
-            action, action_log_prob = agent.get_action(state, evaluation=False)
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
 
-            next_state, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
+                agent.store_outcome(state, next_state, action_log_prob, reward, done)
 
-            agent.store_outcome(state, next_state, action_log_prob, reward, done)
+                ep_reward += reward
+                state = next_state
 
-            ep_reward += reward
-            state = next_state
+            loss, _ = agent.update_policy()
+            ep_time = time.time() - ep_start
 
-        loss, _ = agent.update_policy()
-        ep_time = time.time() - ep_start
+            episode_rewards.append(ep_reward)
+            episode_times.append(ep_time)
 
-        episode_rewards.append(ep_reward)
-        episode_times.append(ep_time)
+            if episode % args.eval_every == 0:
+                avg_eval_reward = evaluate_agent(eval_env, agent, n_episodes=5, seed=args.seed + 10000)
+                eval_rewards.append((episode, avg_eval_reward))
 
-        if episode % args.eval_every == 0:
-            avg_eval_reward = evaluate_agent(eval_env, agent, n_episodes=5, seed=args.seed + 10000)
-            eval_rewards.append((episode, avg_eval_reward))
+                print(
+                    f"Episode {episode:4d} | "
+                    f"train reward = {ep_reward:8.2f} | "
+                    f"eval reward = {avg_eval_reward:8.2f} | "
+                    f"loss = {loss:10.4f} | "
+                    f"time = {ep_time:6.2f}s"
+                )
+            else:
+                print(
+                    f"Episode {episode:4d} | "
+                    f"train reward = {ep_reward:8.2f} | "
+                    f"loss = {loss:10.4f} | "
+                    f"time = {ep_time:6.2f}s"
+                )
 
-            print(
-                f"Episode {episode:4d} | "
-                f"train reward = {ep_reward:8.2f} | "
-                f"eval reward = {avg_eval_reward:8.2f} | "
-                f"loss = {loss:10.4f} | "
-                f"time = {ep_time:6.2f}s"
-            )
-        else:
-            print(
-                f"Episode {episode:4d} | "
-                f"train reward = {ep_reward:8.2f} | "
-                f"loss = {loss:10.4f} | "
-                f"time = {ep_time:6.2f}s"
-            )
+        total_time = time.time() - total_start
 
-    total_time = time.time() - total_start
+        print("\nTraining completed.")
+        print(f"Algorithm: {args.algo}")
+        print(f"Baseline: {args.baseline}")
+        print(f"Episodes: {args.episodes}")
+        print(f"Average episode reward: {np.mean(episode_rewards):.2f}")
+        print(f"Average episode time: {np.mean(episode_times):.2f}s")
+        print(f"Total training time: {total_time:.2f}s")
 
-    print("\nTraining completed.")
-    print(f"Baseline: {args.baseline}")
-    print(f"Episodes: {args.episodes}")
-    print(f"Average episode reward: {np.mean(episode_rewards):.2f}")
-    print(f"Average episode time: {np.mean(episode_times):.2f}s")
-    print(f"Total training time: {total_time:.2f}s")
+        env.close()
+        eval_env.close()
 
-    env.close()
-    eval_env.close()
+    
+    elif args.algo == 'actor_critic':
+        for episode in range(1, args.episodes + 1):
+            state, _ = env.reset(seed=args.seed + episode)
+            done = False
+            ep_reward = 0.0
+            ep_loss = 0.0
+            steps = 0
+            
 
+            ep_start = time.time()
+
+            while not done:
+                
+                action, action_info = agent.get_action(state, evaluation=False)
+                action_log_prob, entropy, value = action_info
+
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
+
+                #aggiornamento dei pesi ad ogni step 
+                step_loss = agent.update_step(
+                    next_state=next_state,
+                    action_log_prob=action_log_prob,
+                    reward=reward,
+                    done=done,
+                    value=value,
+                    entropy=entropy
+                )
+
+                ep_loss += step_loss
+                ep_reward += reward
+                state = next_state
+                steps += 1
+
+            # Calcoliamo la loss media dell'episodio per avere un valore unico da stampare
+            avg_loss = ep_loss / steps if steps > 0 else 0.0
+            ep_time = time.time() - ep_start
+
+            episode_rewards.append(ep_reward)
+            episode_times.append(ep_time)
+
+            if episode % args.eval_every == 0:
+                avg_eval_reward = evaluate_agent(eval_env, agent, n_episodes=5, seed=args.seed + 10000)
+                eval_rewards.append((episode, avg_eval_reward))
+
+                print(
+                    f"Episode {episode:4d} | "
+                    f"train reward = {ep_reward:8.2f} | "
+                    f"eval reward = {avg_eval_reward:8.2f} | "
+                    f"loss = {avg_loss:10.4f} | "
+                    f"time = {ep_time:6.2f}s"
+                )
+            else:
+                print(
+                    f"Episode {episode:4d} | "
+                    f"train reward = {ep_reward:8.2f} | "
+                    f"loss = {avg_loss:10.4f} | "
+                    f"time = {ep_time:6.2f}s"
+                )
+
+        total_time = time.time() - total_start
+
+        print("\nTraining completed.")
+        print(f"Algorithm: {args.algo}")
+        print(f"Episodes: {args.episodes}")
+        print(f"Average episode reward: {np.mean(episode_rewards):.2f}")
+        print(f"Average episode time: {np.mean(episode_times):.2f}s")
+        print(f"Total training time: {total_time:.2f}s")
+
+        env.close()
+        eval_env.close()
 
 if __name__ == '__main__':
     main()
