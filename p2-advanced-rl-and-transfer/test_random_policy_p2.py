@@ -8,36 +8,76 @@
     When exactly is the episode over?
     What is an action here?
 """
+
+import argparse
 import gymnasium as gym
-import panda_gym # type: ignore[import-not-found]
+import numpy as np
+import panda_gym  # type: ignore[import-not-found]
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env-type", type=str, default="target", choices=["source", "target"])
+    parser.add_argument("--episodes", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--render", action="store_true")
+    return parser.parse_args()
+
+
 def main():
-    render = False
+    args = parse_args()
 
     env = gym.make(
         "PandaPush-v3",
-        render_mode="human" if render else "rgb_array",
-        type="target",
+        render_mode="human" if args.render else "rgb_array",
+        type=args.env_type,
         reward_type="dense",
     )
-    
-    print('State space:', env.observation_space)  # state-space
-    print('Action space:', env.action_space)  # action-space
 
-    n_episodes = 5
+    print("State space:", env.observation_space)
+    print("Action space:", env.action_space)
 
-    for ep in range(n_episodes):  
+    episode_returns = []
+    successes = []
+
+    for ep in range(args.episodes):
         done = False
-        state, info = env.reset()  # Reset environment to initial state
+        ep_return = 0.0
 
-        while not done:  # Until the episode is over
-            action = env.action_space.sample()  # Sample random action
+        state, info = env.reset(seed=args.seed + ep)
 
-            state, reward, terminated, truncated, _ = env.step(action)  # Step the simulator to the next timestep
+        while not done:
+            action = env.action_space.sample()
+            state, reward, terminated, truncated, info = env.step(action)
+
             done = terminated or truncated
+            ep_return += float(reward)
 
-            if render:
+            if args.render:
                 env.render()
 
+        episode_returns.append(ep_return)
 
-if __name__ == '__main__':
+        if isinstance(info, dict) and "is_success" in info:
+            successes.append(float(info["is_success"]))
+
+        print(f"Episode {ep + 1:03d} | return = {ep_return:.3f}")
+
+    env.close()
+
+    returns = np.array(episode_returns)
+
+    print("\n=== Random policy results ===")
+    print(f"Environment type: {args.env_type}")
+    print(f"Episodes: {args.episodes}")
+    print(f"Mean return: {returns.mean():.3f}")
+    print(f"Std return:  {returns.std():.3f}")
+    print(f"Min return:  {returns.min():.3f}")
+    print(f"Max return:  {returns.max():.3f}")
+
+    if successes:
+        print(f"Success rate: {np.mean(successes):.2%}")
+
+
+if __name__ == "__main__":
     main()
