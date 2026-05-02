@@ -8,6 +8,7 @@ import panda_gym  # noqa: F401
 import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.monitor import Monitor
 
 from rand_wrapper import RandomizationWrapper
 
@@ -56,8 +57,39 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval-episodes",
         type=int,
-        default=20,
+        default=50,
         help="Number of episodes used during callback evaluation",
+    )
+
+    parser.add_argument(
+        "--clip-range",
+        type=float,
+        default=0.2,
+        help="PPO clipping range",
+    )
+    parser.add_argument(
+        "--ent-coef",
+        type=float,
+        default=0.0,
+        help="Entropy coefficient for PPO",
+    )
+    parser.add_argument(
+        "--gae-lambda",
+        type=float,
+        default=0.95,
+        help="GAE lambda parameter",
+    )
+    parser.add_argument(
+        "--vf-coef",
+        type=float,
+        default=0.5,
+        help="Value function loss coefficient",
+    )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=3e-4,
+        help="Learning rate for PPO",
     )
 
     return parser.parse_args()
@@ -76,7 +108,12 @@ def make_env(env_type: str, sampling_strategy: str, seed: int):
     if sampling_strategy != "none":
         env = RandomizationWrapper(env, strategy=sampling_strategy)
 
+    env = Monitor(env)
     return env
+
+
+def sanitize_float(value: float) -> str:
+    return str(value).replace(".", "p").replace("-", "m")
 
 
 def main() -> None:
@@ -88,9 +125,13 @@ def main() -> None:
 
     os.makedirs(args.model_dir, exist_ok=True)
 
+    lr_str = sanitize_float(args.learning_rate)
+    ent_str = sanitize_float(args.ent_coef)
+
     save_name = (
         f"ppo_push_{args.sampling_strategy}_{args.env_type}_"
-        f"{args.timesteps // 1000}k_seed_{args.seed}"
+        f"{args.timesteps // 1000}k_"
+        f"lr_{lr_str}_ent_{ent_str}_seed_{args.seed}"
     )
 
     save_path = os.path.join(args.model_dir, save_name)
@@ -132,10 +173,15 @@ def main() -> None:
         policy="MultiInputPolicy",
         env=env,
         verbose=1,
-        learning_rate=3e-4,
+        learning_rate=args.learning_rate,
         n_steps=2048,
         batch_size=64,
         gamma=0.99,
+        gae_lambda=args.gae_lambda,
+        clip_range=args.clip_range,
+        ent_coef=args.ent_coef,
+        vf_coef=args.vf_coef,
+        max_grad_norm=0.5,
         seed=args.seed,
     )
 
