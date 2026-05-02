@@ -52,9 +52,6 @@ def evaluate(
         while not (terminated or truncated):
             action, _ = model.predict(obs, deterministic=deterministic)
 
-            if episode == 1:
-                print("Action:", action)
-
             obs, reward, terminated, truncated, info = env.step(action)
             episode_return += float(reward)
 

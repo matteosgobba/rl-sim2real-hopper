@@ -8,6 +8,7 @@ import panda_gym  # noqa: F401
 import torch
 from stable_baselines3 import SAC, HerReplayBuffer
 from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.monitor import Monitor
 
 from rand_wrapper import RandomizationWrapper
 
@@ -47,6 +48,58 @@ def parse_args() -> argparse.Namespace:
         default="models",
         help="Directory where the trained model is saved",
     )
+
+    # SAC hyperparameters
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=3e-4,
+        help="Learning rate for SAC",
+    )
+    parser.add_argument(
+        "--buffer-size",
+        type=int,
+        default=1_000_000,
+        help="Replay buffer size",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=256,
+        help="Batch size",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.99,
+        help="Discount factor",
+    )
+    parser.add_argument(
+        "--tau",
+        type=float,
+        default=0.005,
+        help="Target network update coefficient",
+    )
+    parser.add_argument(
+        "--learning-starts",
+        type=int,
+        default=100,
+        help="Number of steps before learning starts",
+    )
+    parser.add_argument(
+        "--ent-coef",
+        type=str,
+        default="auto",
+        help='Entropy coefficient. Examples: "auto", "auto_0.1", "0.01"',
+    )
+    parser.add_argument(
+        "--n-sampled-goal",
+        type=int,
+        default=4,
+        help="Number of HER sampled goals",
+    )
+
+    # EvalCallback parameters
     parser.add_argument(
         "--eval-freq",
         type=int,
@@ -56,7 +109,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval-episodes",
         type=int,
-        default=20,
+        default=50,
         help="Number of episodes used during callback evaluation",
     )
 
@@ -76,7 +129,12 @@ def make_env(env_type: str, sampling_strategy: str, seed: int):
     if sampling_strategy != "none":
         env = RandomizationWrapper(env, strategy=sampling_strategy)
 
-    return env
+    env = Monitor(env)
+    return env 
+
+
+def sanitize_float(value) -> str:
+    return str(value).replace(".", "p").replace("-", "m")
 
 
 def main() -> None:
@@ -88,9 +146,17 @@ def main() -> None:
 
     os.makedirs(args.model_dir, exist_ok=True)
 
+    lr_str = sanitize_float(args.learning_rate)
+    gamma_str = sanitize_float(args.gamma)
+    tau_str = sanitize_float(args.tau)
+    ent_str = str(args.ent_coef).replace(".", "p").replace("-", "m")
+
     save_name = (
         f"sac_push_{args.sampling_strategy}_{args.env_type}_"
-        f"{args.timesteps // 1000}k_seed_{args.seed}"
+        f"{args.timesteps // 1000}k_"
+        f"lr_{lr_str}_gamma_{gamma_str}_tau_{tau_str}_"
+        f"ent_{ent_str}_ls_{args.learning_starts}_"
+        f"her_{args.n_sampled_goal}_seed_{args.seed}"
     )
 
     save_path = os.path.join(args.model_dir, save_name)
@@ -133,17 +199,19 @@ def main() -> None:
         env=env,
         replay_buffer_class=HerReplayBuffer,
         replay_buffer_kwargs=dict(
-            n_sampled_goal=4,
+            n_sampled_goal=args.n_sampled_goal,
             goal_selection_strategy="future",
         ),
         verbose=1,
-        learning_rate=3e-4,
-        buffer_size=1_000_000,
-        batch_size=256,
-        gamma=0.99,
-        tau=0.005,
+        learning_rate=args.learning_rate,
+        buffer_size=args.buffer_size,
+        batch_size=args.batch_size,
+        gamma=args.gamma,
+        tau=args.tau,
         train_freq=1,
         gradient_steps=1,
+        learning_starts=args.learning_starts,
+        ent_coef=args.ent_coef,
         seed=args.seed,
     )
 

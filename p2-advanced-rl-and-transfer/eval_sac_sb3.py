@@ -8,6 +8,7 @@ import numpy as np
 import panda_gym  # noqa: F401
 import torch
 from stable_baselines3 import SAC
+from stable_baselines3.common.callbacks import EvalCallback
 
 
 def evaluate(
@@ -45,6 +46,7 @@ def evaluate(
 
     for episode in range(1, n_episodes + 1):
         obs, info = env.reset(seed=seed + episode)
+
         terminated = False
         truncated = False
         episode_return = 0.0
