@@ -23,7 +23,6 @@ def evaluate(
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Model file not found: {model_path}. "
-            "Make sure you saved your trained model with model.save(...)."
         )
 
     np.random.seed(seed)

@@ -1,0 +1,2 @@
+algo,ac_variant,n_steps,baseline,seed,episodes,final_eval_episodes,final_eval_mean_return,final_eval_std_return,total_training_time_sec,model_path
+actor_critic,n_step,10,,2,1000,50,491.25342496504794,1.703247647027323,47.332879066467285,results/actor_critic_nstep_10_seed_2/model.pt

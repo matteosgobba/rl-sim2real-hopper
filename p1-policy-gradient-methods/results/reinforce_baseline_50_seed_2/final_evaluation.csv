@@ -1,0 +1,2 @@
+algo,ac_variant,n_steps,baseline,seed,episodes,final_eval_episodes,final_eval_mean_return,final_eval_std_return,total_training_time_sec,model_path
+reinforce,,,50.0,2,1000,50,2.0586166096882943,0.07374731629225277,1.5102460384368896,results/reinforce_baseline_50_seed_2/model.pt

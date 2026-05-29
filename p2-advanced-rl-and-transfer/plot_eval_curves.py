@@ -27,7 +27,6 @@ def load_evaluations(npz_path):
     if "successes" in data.files:
         successes = data["successes"]
 
-        # successes may be object arrays depending on SB3/env
         try:
             success_array = np.array([np.mean(s) for s in successes], dtype=float)
             mean_success = success_array
