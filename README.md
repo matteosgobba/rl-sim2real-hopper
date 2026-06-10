@@ -22,26 +22,40 @@ The project explores reinforcement learning algorithms for continuous robotic co
 ```text
 .
 ├── p1-policy-gradient-methods/
-│   ├── agent.py                 # REINFORCE and Actor-Critic agents
-│   ├── train.py                 # Training script for Hopper experiments
-│   ├── evaluate.py              # Evaluation utilities
-│   ├── plot_results.py          # Plot generation from training/evaluation logs
-│   ├── results/                 # Saved logs, models, and evaluation outputs
-│   └── plots/                   # Generated figures
+│   ├── agent.py                         # REINFORCE and Actor-Critic agent implementations
+│   ├── train.py                         # Training script for Hopper experiments
+│   ├── evaluate.py                      # Evaluation script for trained Hopper policies
+│   ├── inspect_hopper.py                # Hopper environment inspection utilities
+│   ├── test_random_policy.py            # Random policy test on Hopper
+│   ├── render_policy.py                 # Rendering script for trained Hopper policies
+│   ├── plot_results.py                  # Plot generation from Part 1 results
+│   ├── plot_results.ipynb               # Notebook version of the plotting workflow
+│   ├── results/                         # Training logs, evaluation outputs, and saved results
+│   ├── plots/                           # Generated plots for Part 1
+│   ├── frames/                          # Rendered frames
+│   └── screenshots/                     # Environment screenshots
 │
 ├── p2-advanced-rl-and-transfer/
-│   ├── train_ppo.py             # PPO training on PandaPush
-│   ├── train_sac.py             # SAC training on PandaPush
-│   ├── evaluate.py              # Evaluation script for trained policies
-│   ├── rand_wrapper.py          # Source/target and randomization environment wrapper
-│   ├── logs/                    # TensorBoard logs
-│   └── models/                  # Saved PPO/SAC models
+│   ├── train_ppo_sb3.py                 # PPO training pipeline with Stable-Baselines3
+│   ├── train_sac_sb3.py                 # SAC training pipeline with Stable-Baselines3
+│   ├── eval_ppo_sb3.py                  # PPO evaluation script
+│   ├── eval_sac_sb3.py                  # SAC evaluation script
+│   ├── rand_wrapper.py                  # Source/target, UDR, and ADR randomization wrapper
+│   ├── test_random_policy_p2.py         # Random policy test on PandaPush
+│   ├── render_policy.py                 # Rendering script for trained PandaPush policies
+│   ├── plot_eval_curves.py              # Plot generation from evaluation curves
+│   ├── plot_tensorboard_curves.py       # Plot generation from TensorBoard logs
+│   ├── logs/                            # Evaluation and experiment logs
+│   ├── models/                          # Saved PPO/SAC models
+│   ├── tensorboard_logs/                # TensorBoard training logs
+│   ├── render_outputs/                  # Rendered PandaPush outputs
+│   ├── report_figures/                  # Figures used in the final report
+│   └── panda-gym/                       # Local PandaGym-related files
 │
-├── assets/
-│   ├── hopper.gif               # Hopper demo GIF
-│   └── pandapush.gif            # PandaPush demo GIF
-│
-├── requirements.txt             # Python dependencies
+├── assets/                              # README assets and media
+├── logs/                                # Additional project-level logs
+├── Project report.pdf                   # Final project report
+├── requirements.txt                     # Python dependencies
 ├── LICENSE
 └── README.md
 ```
