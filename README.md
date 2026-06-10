@@ -35,8 +35,7 @@ The project explores reinforcement learning algorithms for continuous robotic co
 │   ├── evaluate.py              # Evaluation script for trained policies
 │   ├── rand_wrapper.py          # Source/target and randomization environment wrapper
 │   ├── logs/                    # TensorBoard logs
-│   ├── models/                  # Saved PPO/SAC models
-│   └── results/                 # Evaluation results and experiment outputs
+│   └── models/                  # Saved PPO/SAC models
 │
 ├── assets/
 │   ├── hopper.gif               # Hopper demo GIF
